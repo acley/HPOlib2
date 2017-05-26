@@ -10,7 +10,7 @@ from hpolib.abstract_benchmark import AbstractBenchmark
 from hpolib.util.data_manager import CIFAR10Data
 
 
-class ConvolutionalNeuralNetwork(AbstractBenchmark):
+class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
     def __init__(self, path=None, max_num_epochs=40, rng=None):
 
         self.train, self.train_targets, self.valid, self.valid_targets, self.test, self.test_targets = self.get_data(path)
@@ -30,38 +30,6 @@ class ConvolutionalNeuralNetwork(AbstractBenchmark):
 
     def get_data(self, path):
             pass
-
-    def load_mnist_data(self):
-        # input image dimensions
-        img_rows, img_cols = 28, 28
-
-        # the data, shuffled and split between train and test sets
-        (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
-
-        x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
-        x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
-        input_shape = (img_rows, img_cols, 1)
-
-        x_train = x_train.astype('float32')
-        x_test = x_test.astype('float32')
-        x_train /= 255
-        x_test /= 255
-
-        # convert class vectors to binary class matrices
-        y_train = keras.utils.to_categorical(y_train, num_classes)
-        y_test = keras.utils.to_categorical(y_test, num_classes)
-
-        val_size = 5000
-        val_selections = np.random.choice(x_train.shape[0], size=val_size, replace=False)
-        val_idx = np.zeros(x_train.shape[0])
-        val_idx[val_selections] = 1
-
-        x_val = x_train[val_idx == True]
-        y_val = y_train[val_idx == True]
-        x_train = x_train[val_idx == False]
-        y_train = y_train[val_idx == False]
-
-        return x_train, y_train, x_val, y_val, x_test, y_test
 
     @AbstractBenchmark._check_configuration
     # @AbstractBenchmark._configuration_as_array
@@ -143,18 +111,12 @@ class ConvolutionalNeuralNetwork(AbstractBenchmark):
 
     @staticmethod
     def get_meta_information():
-        return {'name': 'Convolutional Neural Network',
-                'bounds': [[-6, 0],  # init_learning_rate
-                           [32, 512],  # batch_size
-                           [4, 10],  # n_units_1
-                           [4, 10],  # n_units_2
-                           [4, 10]],  # n_units_3
-                'references': ["@article{klein-bnn16a,"
-                               "author = {A. Klein and S. Falkner and T. Springenberg and F. Hutter},"
-                               "title = {Bayesian Neural Network for Predicting Learning Curves},"
-                               "booktitle = {NIPS 2016 Bayesian Neural Network Workshop},"
-                               "month = dec,"
-                               "year = {2016}}"]
+        return {'name': 'Convolutional Neural Network architecture Search',
+                'references': ["@article{zoph2016neural",
+                                "title={Neural architecture search with reinforcement learning}",
+                                "author={Zoph, Barret and Le, Quoc V}",
+                                "journal={arXiv preprint arXiv:1611.01578}",
+                                "year={2016}"]
                 }
 
     def calc_paddings(tensors, verbose=False):
@@ -217,6 +179,58 @@ class ConvolutionalNeuralNetwork(AbstractBenchmark):
         conc_layer = keras.layers.concatenate(padded_layers, axis=-1)
         return conc_layer
 
+    def build_network(params):
+        n_layers = d['num_layers']
+
+        layers = []
+        # dims should be a parameter
+        input_image = keras.layers.Input(shape=(32,32,3))
+        layers.append(input_image)
+
+        dead_end_layers = np.ones(n_layers-1)
+        for ilayer in range(n_layers):
+            lstr = 'Layer ' + str(ilayer+1)
+
+            # convolution params
+            W = d[lstr + ' Width']
+            H = d[lstr + ' Height']
+            N = d[lstr + ' NumFilts']
+
+            # extract layer inputs
+            layer_inputs = []
+            for jlayer in range(ilayer):
+                is_input = d[lstr + ' InputFromLayer ' + str(jlayer+1)]
+                print(ilayer+1, jlayer+1, is_input)
+                if is_input == 1:
+                    layer_inputs.append(jlayer+1)
+                    dead_end_layers[jlayer] = 0
+            # add all dead-end layers to the input
+            # of the last layer
+            if ilayer == (n_layers-1):
+                dead_end_layers = np.nonzero(dead_end_layers)[0] + 1
+                layer_inputs.extend(dead_end_layers)
+            # if a layer doesn't have an input, use the image
+            # as input
+            elif len(layer_inputs) == 0:
+                layer_inputs.append(0)
+
+            inp_layers = [layers[i] for i in layer_inputs]
+            if len(inp_layers) == 1:
+                layers.append(keras.layers.Conv2D(filters=N,
+                                                 kernel_size=(W,H),
+                                                 activation='relu',
+                                                 name='Layer_' + str(ilayer+1))(inp_layers[0]))
+            else:
+                padded_layers = concat_2d_conv_layers(inp_layers)
+                layers.append(keras.layers.Conv2D(filters=N,
+                                                  kernel_size=(W,H),
+                                                 activation='relu',
+                                                 name='Layer_' + str(ilayer+1))(input_image))
+
+        layers.append(keras.layers.Flatten()(layers[-1]))
+        layers.append(keras.layers.Dense(10, activation='softmax')(layers[-1]))
+        return layers
+
 
     def train_net(self, train, train_targets,
                   valid, valid_targets, params,
@@ -255,20 +269,20 @@ class ConvolutionalNeuralNetwork(AbstractBenchmark):
         return learning_curve, cost, train_loss, valid_loss
 
 
-class ConvolutionalNeuralNetworkOnMNIST(ConvolutionalNeuralNetwork):
+class ConvolutionalNeuralNetworkArchSearchOnMNIST(ConvolutionalNeuralNetwork):
 
     def get_data(self):
         dm = CIFAR10Data()
-        return dm.load()
+        x_train, y_train, x_val, y_val, x_test, y_test = dm.load()
 
-    @staticmethod
-    def get_meta_information():
-        d = ConvolutionalNeuralNetwork.get_meta_information()
-        d["references"].append("@Techreport{krizhevsky-tech09a,"
-                               "author = {A. Krizhevsky},"
-                               "title = {Learning multiple layers of features from tiny images},"
-                               "institution = {University of Toronto},"
-                               "year = {2009},"
-                               "keywords = {ML}}"
-                               )
-        return d
+        # reorder images to match tensorflow standard order
+        x_train = np.transpose(x_train, [0,2,3,1])
+        x_val = np.transpose(x_val, [0,2,3,1])
+        x_test = np.transpose(x_test, [0,2,3,1])
+
+        num_classes = len(np.unique(y_train))
+        y_train = keras.utils.to_categorical(y_train, num_classes)
+        y_val = keras.utils.to_categorical(y_val, num_classes)
+        y_test = keras.utils.to_categorical(y_test, num_classes)
+
+        return  x_train, y_train, x_val, y_val, x_test, y_test
