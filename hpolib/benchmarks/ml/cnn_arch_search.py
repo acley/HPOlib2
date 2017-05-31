@@ -123,79 +123,15 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                                 "year={2016}"]
                 }
 
-    def calc_paddings(self, tensors, verbose=False):
-        '''
-            Takes a list of 2D convolutional layers and
-            calculates symmetric paddings to match the dimensions
-            of each layer to the largest layer.
-
-            Returns:
-                paddings: a list of paddings that match the syntax
-                            of the tf.pad function such that:
-                            padded_layers = [tf.pad(tensors[i],
-                                                    paddings[i])
-                                             for i in range(len(tensors))
-
-        '''
-
-        # extract filter dims without batch_size and num_filter_banks
-        dims = np.array([t.get_shape().as_list() for t in tensors])[:,1:-1]
-        max_dims = np.max(dims, axis=0)
-        required_padding = (dims - max_dims)*-1
-
-        # calculate symmetric paddings
-        # paddings before: # of zeros added in front of values of the given dimension
-        # paddings after: # of zeros added after the values of the given dimension
-        # if total number of needed padding is odd, the left-over zero is added to the beginning
-        paddings_before = np.array(required_padding/2, dtype=int)
-        odd_dims = (required_padding % 2) != 0
-        paddings_before[odd_dims] += 1
-        paddings_after = np.array(required_padding/2, dtype=int)
-
-        # reshape/format to match the tf.pad syntax:
-        paddings = np.zeros((len(tensors),4,2))
-        paddings[:,1:3,:] = [np.stack([paddings_before[i,:],
-                                    paddings_after[i,:]],
-                                    axis=1) for i in range(len(tensors))]
-
-        if verbose:
-            print('layer dims: [tensor x dims]\n', dims)
-            print('missing dims:\n', required_padding)
-            print('paddings before:\n', paddings_before)
-            print('paddings after:\n', paddings_after,)
-            print('\n final paddings:',)
-            [print('layer {}: \n {}'.format(i, paddings[i]))
-             for i in range(len(tensors))]
-
-        return paddings
-
-    def concat_2d_conv_layers(self, layers, verbose=False):
-        '''
-            Concatenates a list of 2D convolutional layers. If the dimensions
-            are not all equal, symmetric paddings are added to match the
-            largest dimensions among the layers.
-
-            Returns:
-                conc_layer: a 4D tensor
-        '''
-        paddings = self.calc_paddings(layers, verbose=verbose)
-        padded_layers = [tf.pad(layers[i], paddings[i]) for i in range(len(layers))]
-        conc_layer = keras.layers.concatenate(padded_layers, axis=-1)
-        return conc_layer
-
     def build_network(self, params):
         n_layers = params['num_layers']
 
-        layers = []
-        # dims should be a parameter
-        shape=self.image_dim
-        # input_image = keras.layers.Input(shape=(32,32,3))
-        input_image = keras.layers.Input(shape=shape)
-        layers.append(input_image)
+        input_image = keras.layers.Input(shape=self.image_dim)
+        net_layers = [input_image]
 
         dead_end_layers = np.ones(n_layers-1)
-        for ilayer in range(n_layers):
-            lstr = 'Layer ' + str(ilayer+1)
+        for ilayer_idx in range(n_layers):
+            lstr = 'Layer ' + str(ilayer_idx+1)
 
             # convolution params
             W = params[lstr + ' Width']
@@ -203,39 +139,52 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             N = params[lstr + ' NumFilts']
 
             # extract layer inputs
-            layer_inputs = []
-            for jlayer in range(ilayer):
-                is_input = params[lstr + ' InputFromLayer ' + str(jlayer+1)]
+            ilayer_input_idcs = []
+            for jlayer_idx in range(ilayer_idx):
+                is_input = params[lstr + ' InputFromLayer ' + str(jlayer_idx+1)]
                 if is_input == 1:
-                    layer_inputs.append(jlayer+1)
-                    dead_end_layers[jlayer] = 0
+                    ilayer_input_idcs.append(jlayer_idx+1)
+                    dead_end_layers[jlayer_idx] = 0
             # add all dead-end layers to the input
             # of the last layer
-            if ilayer == (n_layers-1):
+            if ilayer_idx == (n_layers-1):
                 dead_end_layers = np.nonzero(dead_end_layers)[0] + 1
-                layer_inputs.extend(dead_end_layers)
+                ilayer_input_idcs.extend(dead_end_layers)
             # if a layer doesn't have an input, use the image
             # as input
-            elif len(layer_inputs) == 0:
-                layer_inputs.append(0)
+            elif len(ilayer_input_idcs) == 0:
+                ilayer_input_idcs.append(0)
 
-            inp_layers = [layers[i] for i in layer_inputs]
-            if len(inp_layers) == 1:
-                layers.append(keras.layers.Conv2D(filters=N,
-                                                 kernel_size=(W,H),
-                                                 activation='relu',
-                                                 name='Layer_' + str(ilayer+1))(inp_layers[0]))
-            else:
-                padded_layers = self.concat_2d_conv_layers(inp_layers)
-                layers.append(keras.layers.Conv2D(filters=N,
-                                                  kernel_size=(W,H),
-                                                 activation='relu',
-                                                 name='Layer_' + str(ilayer+1))(input_image))
+            ilayer_inputs = [net_layers[idx] for idx in ilayer_input_idcs]
+            concatenated_input = self.concat_conv_tensors(ilayer_inputs)
+            layer_name = 'Layer_' + str(ilayer_idx+1)
+            ilayer = keras.layers.Conv2D(filters=N,
+                                         kernel_size=(W,H),
+                                         activation='relu',
+                                         name=layer_name)(concatenated_input)
 
-        layers.append(keras.layers.Flatten()(layers[-1]))
-        layers.append(keras.layers.Dense(10, activation='softmax')(layers[-1]))
-        return layers
+            net_layers.append(ilayer)
 
+        net_layers.append(keras.layers.Flatten()(net_layers[-1]))
+        net_layers.append(keras.layers.Dense(10, activation='softmax')(net_layers[-1]))
+        return net_layers
+
+    def concat_conv_tensors(self, tensors):
+        if len(tensors) == 1:
+            return tensors[0]
+
+        tensor_dims = np.array([t.get_shape().as_list() for t in tensors])[:,1:-1]
+        max_dims = np.max(tensor_dims, axis=0)
+        paddings = (tensor_dims - max_dims)*-1
+
+        padded_tensors = []
+        for i,itensor in enumerate(tensors):
+            ipadding = paddings[i]
+            ipadded_tensor = keras.layers.ZeroPadding2D(padding=[[0,ipadding[0]], [0,ipadding[1]]])(itensor)
+            padded_tensors.append(ipadded_tensor)
+
+        concat_tensors = keras.layers.concatenate(padded_tensors, axis=-1)
+        return concat_tensors
 
     def train_net(self, train, train_targets,
                   valid, valid_targets, params,
@@ -291,5 +240,13 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         y_train = keras.utils.to_categorical(y_train, num_classes)
         y_val = keras.utils.to_categorical(y_val, num_classes)
         y_test = keras.utils.to_categorical(y_test, num_classes)
+
+        # used_data = 200
+        # x_train = x_train[:used_data]
+        # x_val = x_val[:used_data]
+        # x_test = x_test[:used_data]
+        # y_train = y_train[:used_data]
+        # y_val = y_val[:used_data]
+        # y_test = y_test[:used_data]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
