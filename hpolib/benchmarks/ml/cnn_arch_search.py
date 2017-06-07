@@ -150,7 +150,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             if ilayer_idx == (n_layers-1):
                 dead_end_layers = np.nonzero(dead_end_layers)[0] + 1
                 ilayer_input_idcs.extend(dead_end_layers)
-            # if a layer doesn't have an input, use the image
+            # if a current layer doesn't have an input, use the image
             # as input
             elif len(ilayer_input_idcs) == 0:
                 ilayer_input_idcs.append(0)
@@ -162,7 +162,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                                          kernel_size=(W,H),
                                          activation='relu',
                                          name=layer_name)(concatenated_input)
-
+            ilayer = keras.layers.BatchNormalization(axis=-1)(ilayer)
             net_layers.append(ilayer)
 
         net_layers.append(keras.layers.Flatten()(net_layers[-1]))
@@ -186,6 +186,45 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         concat_tensors = keras.layers.concatenate(padded_tensors, axis=-1)
         return concat_tensors
 
+    def zca_whitening(self, x, zca_epsilon=1e-6):
+        flat_x = np.reshape(x, (x.shape[0], x.shape[1] * x.shape[2] * x.shape[3]))
+        sigma = np.dot(flat_x.T, flat_x) / flat_x.shape[0]
+        u, s, _ = linalg.svd(sigma)
+        principal_components = np.dot(np.dot(u, np.diag(1. / np.sqrt(s + zca_epsilon))), u.T)
+
+        def whiten_img(self, x):
+            flat_x = np.reshape(x, (x.size))
+            whitex = np.dot(flat_x, principal_components)
+            x = np.reshape(whitex, (x.shape[0], x.shape[1], x.shape[2]))
+            return x
+
+        for i in np.arange(len(x)):
+            x[i] = whiten_img(x[i])
+
+
+        return x
+
+    def pad_images(self, x, padding=(4,4)):
+        return np.pad(x, pad_width=[[0,0], padding, padding, [0,0]],
+                      mode='constant', constant_values=0)
+
+    def random_crop(self, x, size=(32,32)):
+        def crop_img(x, size=(32,32)):
+            d1_offset = np.random.randint(8)
+            d2_offset = np.random.randint(8)
+            return x[d1_offset:d1_offset+size[0], d2_offset:d2_offset+size[1], :]
+
+        cx = np.empty(shape=(x.shape[0], size[0], size[1], x.shape[-1]))
+        for i in np.arange(len(x)):
+            cx[i] = crop_img(x[i], size=size)
+
+        return cx
+
+    def random_flip(self, x, axis=2):
+        flip_idx = np.random.random(x.shape[0]) > 0.5
+        x[flip_idx] = np.flip(x[flip_idx], axis=axis)
+        return x
+
     def train_net(self, train, train_targets,
                   valid, valid_targets, params,
                   num_epochs=100, batch_size=128):
@@ -198,8 +237,13 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                     optimizer=keras.optimizers.Adadelta(),
                     metrics=['accuracy'])
 
-        tensorboard = keras.callbacks.TensorBoard(log_dir='./Graph', histogram_freq=0,
-                                  write_graph=True, write_images=False)
+        # if tensorboard is used
+        # tensorboard = keras.callbacks.TensorBoard(log_dir='./Graph', histogram_freq=0,
+        #                           write_graph=True, write_images=False)
+
+        # preprocess_data
+        train = self.random_crop(train.copy())
+        train = self.random_flip(train)
 
         start_time = time.time()
         hist = model.fit(train, train_targets,
@@ -241,12 +285,23 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         y_val = keras.utils.to_categorical(y_val, num_classes)
         y_test = keras.utils.to_categorical(y_test, num_classes)
 
-        # used_data = 200
-        # x_train = x_train[:used_data]
-        # x_val = x_val[:used_data]
-        # x_test = x_test[:used_data]
-        # y_train = y_train[:used_data]
-        # y_val = y_val[:used_data]
-        # y_test = y_test[:used_data]
+        used_data = 10
+        x_train = x_train[:used_data]
+        x_val = x_val[:used_data]
+        x_test = x_test[:used_data]
+        y_train = y_train[:used_data]
+        y_val = y_val[:used_data]
+        y_test = y_test[:used_data]
+
+        # preprocessing that only has to be executed once
+        x_prepr = np.concatenate((x_train, x_val, x_test), axis=0)
+        x_prepr = self.zca_whitening(x_prepr)
+        x_prepr = self.pad_images(x, padding=(4,4))
+
+        # n_train = x_train.shape[0]
+        # n_val = x_val.shape[0]
+        # x_train = x_prepr[:n_train]
+        # x_val = x_prepr[n_train:n_train+n_val]
+        # x_test = x_prepr[n_train+n_val:]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
