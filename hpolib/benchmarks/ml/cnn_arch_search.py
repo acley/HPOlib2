@@ -243,79 +243,61 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                   valid, valid_targets, params,
                   num_epochs=100, batch_size=128):
 
+        start_time = time.time()
 
-        layers = self.build_network(params)
+        layers = build_network(params)
 
         model = keras.models.Model(inputs=layers[0], outputs=layers[-1])
         model.compile(loss=keras.losses.categorical_crossentropy,
-                    optimizer=keras.optimizers.Adadelta(),
-                    metrics=['accuracy'])
+              optimizer=keras.optimizers.Adadelta(),
+              metrics=['accuracy'])
 
-        # if tensorboard is used
-        # tensorboard = keras.callbacks.TensorBoard(log_dir='./Graph', histogram_freq=0,
-        #                           write_graph=True, write_images=False)
+        print("Starting training...")
 
-        # preprocess_data
-        # train = self.random_crop(train.copy())
-        # train = self.random_flip(train)
-        #
-        # start_time = time.time()
-        # hist = model.fit(train, train_targets,
-        #                 batch_size=batch_size,
-        #                 epochs=num_epochs,
-        #                 verbose=2,
-        #                 validation_data=(valid, valid_targets),
-        #                 callbacks=[tensorboard])
-        # end_time = time.time()
-        #
-        # learning_curve = 1 - np.array(hist.history['val_acc'])
-        # cost = np.ones(num_epochs) * (end_time-start_time)/num_epochs
-        # train_loss = np.array(hist.history['loss'])
-        # valid_loss = np.array(hist.history['val_loss'])
+        learning_curve = np.zeros([num_epochs])
+        cost = np.zeros([num_epochs])
+        train_loss = np.zeros([num_epochs])
+        valid_loss = np.zeros([num_epochs])
 
 
         for e in range(num_epochs):
 
-            epoch_start_time = time.time()
-            train_err = 0
-            train_batches = 0
+        epoch_start_time = time.time()
+        train_err = 0
+        train_batches = 0
 
-            for batch in self.iterate_minibatches(train, train_targets, batch_size, shuffle=True):
-                inputs, targets = batch
-                # random data preprocessing
-                inputs = self.random_crop(inputs.copy())
-                inputs = self.random_flip(inputs)
+        for batch in iterate_minibatches(train, train_targets, batch_size, shuffle=True):
+            inputs, targets = batch
+            # random data preprocessing
+            inputs = random_crop(inputs.copy())
+            inputs = random_flip(inputs)
 
-                train_err = model.train_on_batch(inputs, targets)
-                train_batches += 1
+            err, acc = model.train_on_batch(inputs, targets)
+            train_err += err
+            train_batches += 1
 
-            val_err = 0
-            val_acc = 0
-            val_batches = 0
-            for batch in self.iterate_minibatches(valid, valid_targets, batch_size, shuffle=False):
-                inputs, targets = batch
-                err = model.test_on_batch(inputs, targets)
-                preds = model.predict_on_batch(inputs)
-                acc = np.mean(np.equal(np.argmax(preds, axis=1), targets))
+        val_err = 0
+        val_acc = 0
+        val_batches = 0
+        for batch in iterate_minibatches(valid, valid_targets, batch_size, shuffle=False):
+            inputs, targets = batch
+            err,acc = model.test_on_batch(inputs, targets)
 
-                val_err += err
-                val_acc += acc
-                val_batches += 1
+            val_err += err
+            val_acc += acc
+            val_batches += 1
 
-            print("Epoch {} of {} took {:.3f}s".format(e + 1, num_epochs, time.time() - epoch_start_time))
-            print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
-            print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
-            print("  validation accuracy:\t\t{:.2f} %".format(val_acc / val_batches * 100))
+        print("Epoch {} of {} took {:.3f}s".format(e + 1, num_epochs, time.time() - epoch_start_time))
+        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
+        print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+        print("  validation accuracy:\t\t{:.2f} %".format(val_acc / val_batches * 100))
 
-            learning_curve[e] = 1 - val_acc / val_batches
-            cost[e] = time.time() - start_time
-            train_loss[e] = train_err / train_batches
-            valid_loss[e] = val_err / val_batches
+        learning_curve[e] = 1 - val_acc / val_batches
+        cost[e] = time.time() - start_time
+        train_loss[e] = train_err / train_batches
+        valid_loss[e] = val_err / val_batches
 
         return learning_curve, cost, train_loss, valid_loss
-
-
-        # return learning_curve, cost, train_loss, valid_loss
 
 
 class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkArchSearch):
