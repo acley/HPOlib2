@@ -245,7 +245,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 
         start_time = time.time()
 
-        layers = build_network(params)
+        layers = self.build_network(params)
 
         model = keras.models.Model(inputs=layers[0], outputs=layers[-1])
         model.compile(loss=keras.losses.categorical_crossentropy,
@@ -266,11 +266,11 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             train_err = 0
             train_batches = 0
 
-            for batch in iterate_minibatches(train, train_targets, batch_size, shuffle=True):
+            for batch in self.iterate_minibatches(train, train_targets, batch_size, shuffle=True):
                 inputs, targets = batch
                 # random data preprocessing
-                inputs = random_crop(inputs.copy())
-                inputs = random_flip(inputs)
+                inputs = self.random_crop(inputs.copy())
+                inputs = self.random_flip(inputs)
 
                 err, acc = model.train_on_batch(inputs, targets)
                 train_err += err
@@ -279,7 +279,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             val_err = 0
             val_acc = 0
             val_batches = 0
-            for batch in iterate_minibatches(valid, valid_targets, batch_size, shuffle=False):
+            for batch in self.iterate_minibatches(valid, valid_targets, batch_size, shuffle=False):
                 inputs, targets = batch
                 err,acc = model.test_on_batch(inputs, targets)
 
@@ -318,13 +318,13 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         y_val = keras.utils.to_categorical(y_val, num_classes)
         y_test = keras.utils.to_categorical(y_test, num_classes)
 
-        used_data = 4
-        x_train = x_train[:used_data]
-        x_val = x_val[:used_data]
-        x_test = x_test[:used_data]
-        y_train = y_train[:used_data]
-        y_val = y_val[:used_data]
-        y_test = y_test[:used_data]
+        # used_data = 4
+        # x_train = x_train[:used_data]
+        # x_val = x_val[:used_data]
+        # x_test = x_test[:used_data]
+        # y_train = y_train[:used_data]
+        # y_val = y_val[:used_data]
+        # y_test = y_test[:used_data]
 
         # preprocessing that only has to be executed once
         x_prepr = np.concatenate((x_train, x_val, x_test), axis=0)
@@ -336,11 +336,5 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         x_test = x_prepr[n_train+n_val:]
 
         x_train = self.pad_images(x_train, padding=(4,4))
-
-        # n_train = x_train.shape[0]
-        # n_val = x_val.shape[0]
-        # x_train = x_prepr[:n_train]
-        # x_val = x_prepr[n_train:n_train+n_val]
-        # x_test = x_prepr[n_train+n_val:]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
