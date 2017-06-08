@@ -348,12 +348,18 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         # preprocessing that only has to be executed once
         x_prepr = np.concatenate((x_train, x_val, x_test), axis=0)
         x_prepr = self.zca_whitening(x_prepr)
-        x_prepr = self.pad_images(x_prepr, padding=(4,4))
-
         n_train = x_train.shape[0]
         n_val = x_val.shape[0]
         x_train = x_prepr[:n_train]
         x_val = x_prepr[n_train:n_train+n_val]
         x_test = x_prepr[n_train+n_val:]
+
+        x_train = self.pad_images(x_train, padding=(4,4))
+
+        # n_train = x_train.shape[0]
+        # n_val = x_val.shape[0]
+        # x_train = x_prepr[:n_train]
+        # x_val = x_prepr[n_train:n_train+n_val]
+        # x_test = x_prepr[n_train+n_val:]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
