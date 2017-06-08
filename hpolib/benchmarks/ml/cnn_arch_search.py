@@ -295,7 +295,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             for batch in self.iterate_minibatches(valid, valid_targets, batch_size, shuffle=False):
                 inputs, targets = batch
                 # err = model.test_on_batch(inputs, targets)
-                preds = model.predict_on_batch(inputs, targets)
+                preds = model.predict_on_batch(inputs)
 
                 err = np.mean(keras.losses.categorical_crossentropy(targets, preds))
                 acc = np.mean(np.equal(np.argmax(preds, axis=1), targets))
