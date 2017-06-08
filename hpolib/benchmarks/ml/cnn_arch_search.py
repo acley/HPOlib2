@@ -1,5 +1,6 @@
 import time
 import numpy as np
+import scipy as sp
 
 import tensorflow as tf
 import keras
@@ -189,10 +190,10 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
     def zca_whitening(self, x, zca_epsilon=1e-6):
         flat_x = np.reshape(x, (x.shape[0], x.shape[1] * x.shape[2] * x.shape[3]))
         sigma = np.dot(flat_x.T, flat_x) / flat_x.shape[0]
-        u, s, _ = linalg.svd(sigma)
+        u, s, _ = sp.linalg.svd(sigma)
         principal_components = np.dot(np.dot(u, np.diag(1. / np.sqrt(s + zca_epsilon))), u.T)
 
-        def whiten_img(self, x):
+        def whiten_img(x):
             flat_x = np.reshape(x, (x.size))
             whitex = np.dot(flat_x, principal_components)
             x = np.reshape(whitex, (x.shape[0], x.shape[1], x.shape[2]))
@@ -225,6 +226,19 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         x[flip_idx] = np.flip(x[flip_idx], axis=axis)
         return x
 
+    def iterate_minibatches(self, inputs, targets, batch_size, shuffle=False):
+        assert len(inputs) == len(targets)
+        if shuffle:
+            indices = np.arange(len(inputs))
+            # self.rng.shuffle(indices)
+            np.random.shuffle(indices)
+        for start_idx in range(0, len(inputs) - batch_size + 1, batch_size):
+            if shuffle:
+                excerpt = indices[start_idx:start_idx + batch_size]
+            else:
+                excerpt = slice(start_idx, start_idx + batch_size)
+            yield inputs[excerpt], targets[excerpt]
+
     def train_net(self, train, train_targets,
                   valid, valid_targets, params,
                   num_epochs=100, batch_size=128):
@@ -242,29 +256,67 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         #                           write_graph=True, write_images=False)
 
         # preprocess_data
-        train = self.random_crop(train.copy())
-        train = self.random_flip(train)
+        # train = self.random_crop(train.copy())
+        # train = self.random_flip(train)
+        #
+        # start_time = time.time()
+        # hist = model.fit(train, train_targets,
+        #                 batch_size=batch_size,
+        #                 epochs=num_epochs,
+        #                 verbose=2,
+        #                 validation_data=(valid, valid_targets),
+        #                 callbacks=[tensorboard])
+        # end_time = time.time()
+        #
+        # learning_curve = 1 - np.array(hist.history['val_acc'])
+        # cost = np.ones(num_epochs) * (end_time-start_time)/num_epochs
+        # train_loss = np.array(hist.history['loss'])
+        # valid_loss = np.array(hist.history['val_loss'])
 
-        start_time = time.time()
-        hist = model.fit(train, train_targets,
-                        batch_size=batch_size,
-                        epochs=num_epochs,
-                        verbose=2,
-                        validation_data=(valid, valid_targets),
-                        callbacks=[tensorboard])
-        end_time = time.time()
 
-        learning_curve = 1 - np.array(hist.history['val_acc'])
-        cost = np.ones(num_epochs) * (end_time-start_time)/num_epochs
-        train_loss = np.array(hist.history['loss'])
-        valid_loss = np.array(hist.history['val_loss'])
+        for e in range(num_epochs):
 
-        # learning_curve[e] = 1 - val_acc / val_batches
-        # cost[e] = time.time() - start_time
-        # train_loss[e] = train_err / train_batches
-        # valid_loss[e] = val_err / val_batches
+            epoch_start_time = time.time()
+            train_err = 0
+            train_batches = 0
+
+            for batch in self.iterate_minibatches(train, train_targets, batch_size, shuffle=True):
+                inputs, targets = batch
+                # random data preprocessing
+                inputs = self.random_crop(inputs.copy())
+                inputs = self.random_flip(inputs)
+
+                train_err = model.train_on_batch(inputs, targets)
+                train_batches += 1
+
+            val_err = 0
+            val_acc = 0
+            val_batches = 0
+            for batch in self.iterate_minibatches(valid, valid_targets, batch_size, shuffle=False):
+                inputs, targets = batch
+                # err = model.test_on_batch(inputs, targets)
+                preds = model.predict_on_batch(inputs, targets)
+
+                err = np.mean(keras.losses.categorical_crossentropy(targets, preds))
+                acc = np.mean(np.equal(np.argmax(preds, axis=1), targets))
+                val_err += err
+                val_acc += acc
+                val_batches += 1
+
+            print("Epoch {} of {} took {:.3f}s".format(e + 1, num_epochs, time.time() - epoch_start_time))
+            print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
+            print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+            print("  validation accuracy:\t\t{:.2f} %".format(val_acc / val_batches * 100))
+
+            learning_curve[e] = 1 - val_acc / val_batches
+            cost[e] = time.time() - start_time
+            train_loss[e] = train_err / train_batches
+            valid_loss[e] = val_err / val_batches
 
         return learning_curve, cost, train_loss, valid_loss
+
+
+        # return learning_curve, cost, train_loss, valid_loss
 
 
 class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkArchSearch):
@@ -285,7 +337,7 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         y_val = keras.utils.to_categorical(y_val, num_classes)
         y_test = keras.utils.to_categorical(y_test, num_classes)
 
-        used_data = 10
+        used_data = 4
         x_train = x_train[:used_data]
         x_val = x_val[:used_data]
         x_test = x_test[:used_data]
@@ -296,12 +348,12 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         # preprocessing that only has to be executed once
         x_prepr = np.concatenate((x_train, x_val, x_test), axis=0)
         x_prepr = self.zca_whitening(x_prepr)
-        x_prepr = self.pad_images(x, padding=(4,4))
+        x_prepr = self.pad_images(x_prepr, padding=(4,4))
 
-        # n_train = x_train.shape[0]
-        # n_val = x_val.shape[0]
-        # x_train = x_prepr[:n_train]
-        # x_val = x_prepr[n_train:n_train+n_val]
-        # x_test = x_prepr[n_train+n_val:]
+        n_train = x_train.shape[0]
+        n_val = x_val.shape[0]
+        x_train = x_prepr[:n_train]
+        x_val = x_prepr[n_train:n_train+n_val]
+        x_test = x_prepr[n_train+n_val:]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
