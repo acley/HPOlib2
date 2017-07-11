@@ -289,7 +289,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkArchSearch):
 
     def get_data(self):
-        dm = ZCAWhitened()
+        dm = CIFAR10DataZCAWhitened()
         x_train, y_train, x_val, y_val, x_test, y_test = dm.load()
 
         self.image_dim = x_train[0].shape
