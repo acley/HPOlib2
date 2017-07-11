@@ -164,11 +164,12 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             layer_name = 'Layer_' + str(ilayer_idx+1)
             ilayer = keras.layers.Conv2D(filters=N,
                                          kernel_size=(W,H),
-                                         activation='relu',
+                                        #  activation='relu',
                                          W_regularizer=l2(0.0001),
                                          b_regularizer=l2(0.0001),
                                          name=layer_name)(concatenated_input)
             ilayer = keras.layers.BatchNormalization(axis=-1)(ilayer)
+            ilayer = keras.activation.relu(ilayer)
             net_layers.append(ilayer)
 
         net_layers.append(keras.layers.Flatten()(net_layers[-1]))
@@ -233,8 +234,8 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         model = keras.models.Model(inputs=layers[0], outputs=layers[-1])
         decay_rate = 0.1 / num_epochs
         model.compile(loss=keras.losses.categorical_crossentropy,
-              #optimizer=keras.optimizers.Adadelta(),
-              optimizer=keras.optimizers.SGD(lr=0.1, momentum=0.9, decay=decay_rate, nesterov=True),
+              optimizer=keras.optimizers.Adadelta(),
+            #   optimizer=keras.optimizers.SGD(lr=0.1, momentum=0.9, decay=decay_rate, nesterov=True),
               metrics=['accuracy'])
 
         print("Starting training...")
@@ -288,15 +289,8 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkArchSearch):
 
     def get_data(self):
-
-
         dm = ZCAWhitened()
         x_train, y_train, x_val, y_val, x_test, y_test = dm.load()
-
-        # reorder images to match tensorflow standard order
-        # x_train = np.transpose(x_train, [0,2,3,1])
-        # x_val = np.transpose(x_val, [0,2,3,1])
-        # x_test = np.transpose(x_test, [0,2,3,1])
 
         self.image_dim = x_train[0].shape
 
@@ -304,14 +298,6 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         y_train = keras.utils.to_categorical(y_train, num_classes)
         y_val = keras.utils.to_categorical(y_val, num_classes)
         y_test = keras.utils.to_categorical(y_test, num_classes)
-
-        # used_data = 4
-        # x_train = x_train[:used_data]
-        # x_val = x_val[:used_data]
-        # x_test = x_test[:used_data]
-        # y_train = y_train[:used_data]
-        # y_val = y_val[:used_data]
-        # y_test = y_test[:used_data]
 
         print('x_train', x_train.shape)
         print('x_val', x_val.shape)
