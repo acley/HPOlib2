@@ -169,7 +169,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                                          b_regularizer=l2(0.0001),
                                          name=layer_name)(concatenated_input)
             ilayer = keras.layers.BatchNormalization(axis=-1)(ilayer)
-            ilayer = keras.activation.relu(ilayer)
+            ilayer = keras.layers.Activation('relu')(ilayer)
             net_layers.append(ilayer)
 
         net_layers.append(keras.layers.Flatten()(net_layers[-1]))
