@@ -8,6 +8,8 @@ import tarfile
 from urllib.request import urlretrieve
 
 import numpy as np
+import scipy as sp
+from scipy import linalg
 
 import hpolib
 
@@ -269,7 +271,7 @@ class CIFAR10DataZCAWhitened(DataManager):
             y_val = data['y_val']
             X_test = data['X_test']
             y_test = data['y_test']
-            return X_train, y_train, X_valid, y_valid, X_test, y_test
+            return X_train, y_train, X_val, y_val, X_test, y_test
 
         xs = []
         ys = []
@@ -304,8 +306,8 @@ class CIFAR10DataZCAWhitened(DataManager):
         X_train = x[:45000, :, :, :]
         y_train = y[:45000]
 
-        X_valid = x[45000:50000, :, :, :]
-        y_valid = y[45000:50000]
+        X_val = x[45000:50000, :, :, :]
+        y_val = y[45000:50000]
 
         X_test = x[50000:, :, :, :]
         y_test = y[50000:]
@@ -314,7 +316,7 @@ class CIFAR10DataZCAWhitened(DataManager):
                 X_val=X_val, y_val=y_val,
                 X_test=X_test, y_test=y_test)
 
-        return X_train, y_train, X_valid, y_valid, X_test, y_test
+        return X_train, y_train, X_val, y_val, X_test, y_test
 
     def _zca_whitening(self, X, zca_epsilon=1e-6):
         flat_X = np.reshape(X, (X.shape[0], X.shape[1] * X.shape[2] * X.shape[3]))
