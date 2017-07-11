@@ -242,7 +242,7 @@ class CIFAR10DataZCAWhitened(DataManager):
             self.logger.debug("Create directory %s", self.save_to)
             os.makedirs(self.save_to)
 
-        super(CIFAR10Data, self).__init__()
+        super(CIFAR10DataZCAWhitened, self).__init__()
 
     def load(self):
         """
