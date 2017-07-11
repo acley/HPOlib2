@@ -190,28 +190,6 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         concat_tensors = keras.layers.concatenate(padded_tensors, axis=-1)
         return concat_tensors
 
-    def zca_whitening(self, x, zca_epsilon=1e-6):
-        flat_x = np.reshape(x, (x.shape[0], x.shape[1] * x.shape[2] * x.shape[3]))
-        sigma = np.dot(flat_x.T, flat_x) / flat_x.shape[0]
-        u, s, _ = sp.linalg.svd(sigma)
-        principal_components = np.dot(np.dot(u, np.diag(1. / np.sqrt(s + zca_epsilon))), u.T)
-
-        def whiten_img(x):
-            flat_x = np.reshape(x, (x.size))
-            whitex = np.dot(flat_x, principal_components)
-            x = np.reshape(whitex, (x.shape[0], x.shape[1], x.shape[2]))
-            return x
-
-        for i in np.arange(len(x)):
-            x[i] = whiten_img(x[i])
-
-
-        return x
-
-    def pad_images(self, x, padding=(4,4)):
-        return np.pad(x, pad_width=[[0,0], padding, padding, [0,0]],
-                      mode='constant', constant_values=0)
-
     def random_crop(self, x, size=(32,32)):
         def crop_img(x, size=(32,32)):
             d1_offset = np.random.randint(8)
@@ -308,13 +286,15 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkArchSearch):
 
     def get_data(self):
+
+
         dm = CIFAR10Data()
         x_train, y_train, x_val, y_val, x_test, y_test = dm.load()
 
         # reorder images to match tensorflow standard order
-        x_train = np.transpose(x_train, [0,2,3,1])
-        x_val = np.transpose(x_val, [0,2,3,1])
-        x_test = np.transpose(x_test, [0,2,3,1])
+        # x_train = np.transpose(x_train, [0,2,3,1])
+        # x_val = np.transpose(x_val, [0,2,3,1])
+        # x_test = np.transpose(x_test, [0,2,3,1])
 
         self.image_dim = x_train[0].shape
 
@@ -331,19 +311,14 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         # y_val = y_val[:used_data]
         # y_test = y_test[:used_data]
 
-        # preprocessing that only has to be executed once
-        x_prepr = np.concatenate((x_train, x_val, x_test), axis=0)
-        x_prepr = self.zca_whitening(x_prepr)
-        n_train = x_train.shape[0]
-        n_val = x_val.shape[0]
-        print(x_prepr.shape)
-        x_train = x_prepr[:n_train]
-        x_val = x_prepr[n_train:n_train+n_val]
-        x_test = x_prepr[n_train+n_val:]
-        print(x_train.shape)
-        print(x_val.shape)
-        print(x_test.shape)
+        print('x_train', x_train.shape)
+        print('x_val', x_val.shape)
+        print('x_test', x_test.shape)
 
         x_train = self.pad_images(x_train, padding=(4,4))
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
+
+    def pad_images(self, x, padding=(4,4)):
+        return np.pad(x, pad_width=[[0,0], padding, padding, [0,0]],
+                      mode='constant', constant_values=0)
