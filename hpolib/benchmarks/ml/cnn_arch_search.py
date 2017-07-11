@@ -4,6 +4,7 @@ import scipy as sp
 
 import tensorflow as tf
 import keras
+from keras.regularizers import l2
 
 import ConfigSpace
 from hpolib.abstract_benchmark import AbstractBenchmark
@@ -162,6 +163,8 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             ilayer = keras.layers.Conv2D(filters=N,
                                          kernel_size=(W,H),
                                          activation='relu',
+                                         W_regularizer=l2(0.0001),
+                                         b_regularizer=l2(0.0001),
                                          name=layer_name)(concatenated_input)
             ilayer = keras.layers.BatchNormalization(axis=-1)(ilayer)
             net_layers.append(ilayer)
@@ -248,8 +251,10 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         layers = self.build_network(params)
 
         model = keras.models.Model(inputs=layers[0], outputs=layers[-1])
+        decay_rate = 0.1 / num_epochs
         model.compile(loss=keras.losses.categorical_crossentropy,
-              optimizer=keras.optimizers.Adadelta(),
+              #optimizer=keras.optimizers.Adadelta(),
+              optimizer=keras.optimizers.SGD(lr=0.1, momentum=0.9, decay=decay_rate, nesterov=True),
               metrics=['accuracy'])
 
         print("Starting training...")
@@ -331,9 +336,13 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         x_prepr = self.zca_whitening(x_prepr)
         n_train = x_train.shape[0]
         n_val = x_val.shape[0]
+        print(x_prepr.shape)
         x_train = x_prepr[:n_train]
         x_val = x_prepr[n_train:n_train+n_val]
         x_test = x_prepr[n_train+n_val:]
+        print(x_train.shape)
+        print(x_val.shape)
+        print(x_test.shape)
 
         x_train = self.pad_images(x_train, padding=(4,4))
 
