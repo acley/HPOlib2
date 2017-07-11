@@ -9,6 +9,8 @@ from keras.regularizers import l2
 import ConfigSpace
 from hpolib.abstract_benchmark import AbstractBenchmark
 from hpolib.util.data_manager import CIFAR10Data
+from hpolib.util.data_manager import CIFAR10DataZCAWhitened
+
 
 
 class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
@@ -288,7 +290,7 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
     def get_data(self):
 
 
-        dm = CIFAR10Data()
+        dm = ZCAWhitened()
         x_train, y_train, x_val, y_val, x_test, y_test = dm.load()
 
         # reorder images to match tensorflow standard order
