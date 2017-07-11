@@ -331,7 +331,7 @@ class CIFAR10DataZCAWhitened(DataManager):
         for i in np.arange(len(X)):
             X[i] = whiten_img(X[i])
 
-    return X
+        return X
 
     def __load_data(self, filename):
         """
