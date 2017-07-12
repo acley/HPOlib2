@@ -165,8 +165,8 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             ilayer = keras.layers.Conv2D(filters=N,
                                          kernel_size=(W,H),
                                         #  activation='relu',
-                                         W_regularizer=l2(0.0001),
-                                         b_regularizer=l2(0.0001),
+                                        #  W_regularizer=l2(0.0001),
+                                        #  b_regularizer=l2(0.0001),
                                          name=layer_name)(concatenated_input)
             ilayer = keras.layers.BatchNormalization(axis=-1)(ilayer)
             ilayer = keras.layers.Activation('relu')(ilayer)
@@ -251,6 +251,12 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             epoch_start_time = time.time()
             train_err = 0
             train_batches = 0
+
+            if (e == int(0.5 * num_epochs * )) or (e == int(0.75 * num_epochs)):
+                new_lr = 0.1*model.lr.get_value()
+                print('Changing learning rate from {} to {}'.format(
+                    model.lr.get_value, new_lr))
+                model.lr.set_value(new_lr)
 
             for batch in self.iterate_minibatches(train, train_targets, batch_size, shuffle=True):
                 inputs, targets = batch
