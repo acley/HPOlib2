@@ -252,18 +252,20 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             train_err = 0
             train_batches = 0
 
-            if (e == int(0.5 * num_epochs * )) or (e == int(0.75 * num_epochs)):
-                new_lr = 0.1*model.lr.get_value()
+            
+            if (e == int(0.5 * num_epochs)) or (e == int(0.75 * num_epochs)):
+            #if True:
+                old_lr = keras.backend.get_value(model.optimizer.lr)
+                new_lr = 0.1*old_lr
                 print('Changing learning rate from {} to {}'.format(
-                    model.lr.get_value, new_lr))
-                model.lr.set_value(new_lr)
+                    old_lr, new_lr))
+                keras.backend.set_value(model.optimizer.lr, new_lr)
 
             for batch in self.iterate_minibatches(train, train_targets, batch_size, shuffle=True):
                 inputs, targets = batch
                 # random data preprocessing
                 inputs = self.random_crop(inputs.copy())
                 inputs = self.random_flip(inputs)
-
                 err, acc = model.train_on_batch(inputs, targets)
                 train_err += err
                 train_batches += 1
@@ -310,6 +312,11 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         print('x_test', x_test.shape)
 
         x_train = self.pad_images(x_train, padding=(4,4))
+        
+        x_train = x_train[:128]
+        x_val = x_val[:128]
+        y_train = y_train[:128]
+        y_val = y_val[:128]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
 
