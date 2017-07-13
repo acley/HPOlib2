@@ -210,7 +210,8 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         x[flip_idx] = np.flip(x[flip_idx], axis=axis)
         return x
 
-    def iterate_minibatches(self, inputs, targets, batch_size, shuffle=False):
+    def iterate_minibatches(self, inputs, targets, batch_size, shuffle=False,
+                            random_flip=False, random_crop=False):
         assert len(inputs) == len(targets)
         if shuffle:
             indices = np.arange(len(inputs))
@@ -221,7 +222,59 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                 excerpt = indices[start_idx:start_idx + batch_size]
             else:
                 excerpt = slice(start_idx, start_idx + batch_size)
-            yield inputs[excerpt], targets[excerpt]
+
+            batch_inputs = inputs[excerpt]
+            batch_targets = targets[excerpt]
+            if random_crop:
+                batch_inputs = self.random_crop(batch_inputs.copy())
+            if random_flip:
+                batch_inputs = self.random_flip(batch_inputs)
+
+            yield batch_inputs, batch_targets
+            # yield inputs[excerpt], targets[excerpt]
+
+    def train_net_logged(self, train, train_targets,
+                        valid, valid_targets, params,
+                        num_epochs=100, batch_size=128):
+
+        layers = self.build_network(params)
+
+        model = keras.models.Model(inputs=layers[0], outputs=layers[-1])
+        lr = 0.1
+        model.compile(loss=keras.losses.categorical_crossentropy,
+            optimizer=keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
+            metrics=['accuracy'])
+
+        # called in every epoch, necessary to use tensorboard
+        tb_callback = keras.callbacks.TensorBoard(log_dir='./logs',
+                        histogram_freq=1, batch_size=32,
+                        write_graph=True, write_grads=False,
+                        write_images=False)
+
+        # called in every epoch, used to update lr
+        def paper_lr_schedule(epoch, max_epochs=num_epochs, init_lr=lr):
+            if epoch == 1:
+                print('changing lr to', 0.001)
+                return 0.001
+            if epoch == int(0.5*max_epochs):
+                return init_lr/10.
+            if epoch == int(0.75*max_epoch):
+                return init_lr/100.
+        lr_callback = keras.callbacks.LearningRateScheduler(paper_lr_schedule)
+
+        train_data_generator = iterate_minibatches(inputs=train, targets=targets,
+                            batch_size=batch_size, shuffle=True,
+                            random_flip=True, random_crop=True)
+        valid_data_generator = iterate_minibatches(inputs=valid, targets=valid_targets,
+                            batch_size=batch_size, shuffle=True)
+
+        hist = fit_generator(generator=data_generator,
+                            steps_per_epoch=int(len(train)/batch_size),
+                            epochs=num_epochs,
+                            validation_data=valid_data_generator,
+                            validation_steps=int(len(valid)/batch_size),
+                            callbacks=[tb_callback,lr_callback]
+
 
     def train_net(self, train, train_targets,
                   valid, valid_targets, params,
@@ -232,10 +285,10 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         layers = self.build_network(params)
 
         model = keras.models.Model(inputs=layers[0], outputs=layers[-1])
-        decay_rate = 0.1 / num_epochs
+        # decay_rate = 0.1 / num_epochs
         model.compile(loss=keras.losses.categorical_crossentropy,
-              optimizer=keras.optimizers.Adadelta(),
-            #   optimizer=keras.optimizers.SGD(lr=0.1, momentum=0.9, decay=decay_rate, nesterov=True),
+            #   optimizer=keras.optimizers.Adadelta(),
+              optimizer=keras.optimizers.SGD(lr=0.1, momentum=0.9, nesterov=True),
               metrics=['accuracy'])
 
         print("Starting training...")
@@ -252,7 +305,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             train_err = 0
             train_batches = 0
 
-            
+
             if (e == int(0.5 * num_epochs)) or (e == int(0.75 * num_epochs)):
             #if True:
                 old_lr = keras.backend.get_value(model.optimizer.lr)
@@ -312,7 +365,7 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         print('x_test', x_test.shape)
 
         x_train = self.pad_images(x_train, padding=(4,4))
-        
+
         x_train = x_train[:128]
         x_val = x_val[:128]
         y_train = y_train[:128]
