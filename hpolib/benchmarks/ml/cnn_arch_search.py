@@ -269,8 +269,8 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         # called in every epoch, necessary to use tensorboard
         tb_callback = keras.callbacks.TensorBoard(log_dir='./logs',
                         histogram_freq=1, batch_size=32,
-                        write_graph=True, write_grads=False,
-                        write_images=False)
+                        write_graph=True, write_grads=True,
+                        write_images=True)
 
         # called in every epoch, used to update lr
         def paper_lr_schedule(epoch, max_epochs=num_epochs, init_lr=lr):
@@ -387,11 +387,12 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
 
         x_train = self.pad_images(x_train, padding=(4,4))
 
-        n = 1000
-        x_train = x_train[:n]
-        x_val = x_val[:n]
-        y_train = y_train[:n]
-        y_val = y_val[:n]
+        nt = 33
+        nv = 17
+        x_train = x_train[:nt]
+        x_val = x_val[nt:nt+nv]
+        y_train = y_train[:nt]
+        y_val = y_val[nt:nt+nv]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
 
