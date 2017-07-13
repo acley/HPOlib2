@@ -51,20 +51,24 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         train_targets = self.train_targets[shuffle[:size]]
 
         params = config.get_dictionary()
-        lc_curve, cost_curve, train_loss, valid_loss = self.train_net(train, train_targets,
-                                                                      self.valid, self.valid_targets,
-                                                                      batch_size=self.batch_size,
-                                                                      params=params,
-                                                                      num_epochs=num_epochs)
+        #lc_curve, cost_curve, train_loss, valid_loss = self.train_net(train, train_targets,
+        hist = self.train_net_logged(train, train_targets, self.valid,
+                self.valid_targets, batch_size=self.batch_size,
+                params=params, num_epochs=num_epochs)
+                                                                      #self.valid, self.valid_targets,
+                                                                      #batch_size=self.batch_size,
+                                                                      #params=params,
+                                                                      #num_epochs=num_epochs)
 
-        y = lc_curve[-1]
-        c = cost_curve[-1]
-        return {'function_value': y,
-                "cost": c,
-                "train_loss": train_loss,
-                "valid_loss": valid_loss,
-                "learning_curve": lc_curve,
-                "learning_curve_cost": cost_curve}
+        #y = lc_curve[-1]
+        #c = cost_curve[-1]
+        #return {'function_value': y,
+        #        "cost": c,
+        #        "train_loss": train_loss,
+        #        "valid_loss": valid_loss,
+        #        "learning_curve": lc_curve,
+        #        "learning_curve_cost": cost_curve}
+        return hist
 
     @AbstractBenchmark._check_configuration
     # @AbstractBenchmark._configuration_as_array
@@ -229,9 +233,28 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                 batch_inputs = self.random_crop(batch_inputs.copy())
             if random_flip:
                 batch_inputs = self.random_flip(batch_inputs)
-
+            
+            print('inputs: {}, start_idx: {}, end_idx: {}, max_idx: {}, excerpt:{}'.format(
+                len(inputs), start_idx, start_idx+batch_size,len(inputs)-batch_size+1, len(excerpt)))
             yield batch_inputs, batch_targets
             # yield inputs[excerpt], targets[excerpt]
+
+    def iterate_minibatches_infty(self, inputs, targets, batch_size,
+            random_flip=False, random_crop=False):
+        assert len(inputs) == len(targets)
+
+        indices = np.arange(len(inputs))
+        while True:
+            np.random.shuffle(indices)
+            for start_idx in range(0, len(inputs)-batch_size + 1, batch_size):
+                excerpt = indices[start_idx:start_idx+batch_size]
+                batch_inputs = inputs[excerpt]
+                batch_targets = targets[excerpt]
+                if random_crop:
+                    batch_inputs = self.random_crop(batch_inputs.copy())
+                if random_flip:
+                    batch_inputs = self.random_flip(batch_inputs.copy())
+                yield batch_inputs, batch_targets
 
     def train_net_logged(self, train, train_targets,
                         valid, valid_targets, params,
@@ -253,27 +276,31 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 
         # called in every epoch, used to update lr
         def paper_lr_schedule(epoch, max_epochs=num_epochs, init_lr=lr):
+            if epoch < 1:
+                return 0.1
             if epoch == 1:
                 print('changing lr to', 0.001)
-                return 0.001
+                return float(0.001)
             if epoch == int(0.5*max_epochs):
                 return init_lr/10.
-            if epoch == int(0.75*max_epoch):
+            if epoch == int(0.75*max_epochs):
                 return init_lr/100.
+            return 0.1
         lr_callback = keras.callbacks.LearningRateScheduler(paper_lr_schedule)
 
-        train_data_generator = iterate_minibatches(inputs=train, targets=targets,
-                            batch_size=batch_size, shuffle=True,
+        train_data_generator = self.iterate_minibatches_infty(inputs=train, targets=train_targets,
+                            batch_size=batch_size,# shuffle=False,
                             random_flip=True, random_crop=True)
-        valid_data_generator = iterate_minibatches(inputs=valid, targets=valid_targets,
-                            batch_size=batch_size, shuffle=True)
+        valid_data_generator = self.iterate_minibatches_infty(inputs=valid, targets=valid_targets,
+                            batch_size=batch_size)#, shuffle=False)
 
-        hist = fit_generator(generator=data_generator,
+        hist = model.fit_generator(generator=train_data_generator,
                             steps_per_epoch=int(len(train)/batch_size),
                             epochs=num_epochs,
                             validation_data=valid_data_generator,
                             validation_steps=int(len(valid)/batch_size),
-                            callbacks=[tb_callback,lr_callback]
+                            callbacks=[tb_callback,lr_callback])
+        return hist
 
 
     def train_net(self, train, train_targets,
@@ -365,11 +392,12 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         print('x_test', x_test.shape)
 
         x_train = self.pad_images(x_train, padding=(4,4))
-
-        x_train = x_train[:128]
-        x_val = x_val[:128]
-        y_train = y_train[:128]
-        y_val = y_val[:128]
+        
+        n = 1000
+        x_train = x_train[:n]
+        x_val = x_val[:n]
+        y_train = y_train[:n]
+        y_val = y_val[:n]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
 
