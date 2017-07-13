@@ -52,7 +52,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 
         params = config.get_dictionary()
         #lc_curve, cost_curve, train_loss, valid_loss = self.train_net(train, train_targets,
-        hist = self.train_net_logged(train, train_targets, self.valid,
+        hist = self.train_net_no_gen(train, train_targets, self.valid,
                 self.valid_targets, batch_size=self.batch_size,
                 params=params, num_epochs=num_epochs)
                                                                       #self.valid, self.valid_targets,
@@ -253,6 +253,33 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                 if random_flip:
                     batch_inputs = self.random_flip(batch_inputs.copy())
                 yield batch_inputs, batch_targets
+
+    def train_net_no_gen(self, train, train_targets,
+                        valid, valid_targets, params,
+                        num_epochs=100, batch_size=64):
+
+        layers = self.build_network(params)
+
+        model = keras.models.Model(inputs=layers[0], outputs=layers[-1])
+        lr = 0.1
+        model.compile(loss=keras.losses.categorical_crossentropy,
+            optimizer=keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
+            metrics=['accuracy'])
+
+
+        # called in every epoch, necessary to use tensorboard
+        tb_callback = keras.callbacks.TensorBoard(log_dir='./logs',
+                        histogram_freq=1, batch_size=32,
+                        write_graph=True, write_grads=True,
+                        write_images=True)
+
+        hist = model.fit(x=train, y=train_targets, batch_size=batch_size, epochs=num_epochs,
+            verbose=2, validation_data=(valid, valid_targets),
+            callbacks=[tb_callback])
+
+        return hist
+
+
 
     def train_net_logged(self, train, train_targets,
                         valid, valid_targets, params,
