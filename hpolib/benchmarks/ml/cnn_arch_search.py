@@ -233,19 +233,17 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                 batch_inputs = self.random_crop(batch_inputs.copy())
             if random_flip:
                 batch_inputs = self.random_flip(batch_inputs)
-            
-            print('inputs: {}, start_idx: {}, end_idx: {}, max_idx: {}, excerpt:{}'.format(
-                len(inputs), start_idx, start_idx+batch_size,len(inputs)-batch_size+1, len(excerpt)))
-            yield batch_inputs, batch_targets
-            # yield inputs[excerpt], targets[excerpt]
 
-    def iterate_minibatches_infty(self, inputs, targets, batch_size,
-            random_flip=False, random_crop=False):
+            yield batch_inputs, batch_targets
+
+    def iterate_minibatches_endless(self, inputs, targets, batch_size,
+            shuffle=True, random_flip=False, random_crop=False):
         assert len(inputs) == len(targets)
 
         indices = np.arange(len(inputs))
-        while True:
+        if shuffle:
             np.random.shuffle(indices)
+        while True:
             for start_idx in range(0, len(inputs)-batch_size + 1, batch_size):
                 excerpt = indices[start_idx:start_idx+batch_size]
                 batch_inputs = inputs[excerpt]
@@ -276,23 +274,19 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 
         # called in every epoch, used to update lr
         def paper_lr_schedule(epoch, max_epochs=num_epochs, init_lr=lr):
-            if epoch < 1:
-                return 0.1
-            if epoch == 1:
-                print('changing lr to', 0.001)
-                return float(0.001)
-            if epoch == int(0.5*max_epochs):
+            if epoch < int(0.5*max_epochs):
+                return init_lr
+            if (epoch >= int(0.5*max_epochs)) and (epoch < int(0.75*max_epochs)):
                 return init_lr/10.
-            if epoch == int(0.75*max_epochs):
+            if epoch >= int(0.75*max_epochs):
                 return init_lr/100.
-            return 0.1
         lr_callback = keras.callbacks.LearningRateScheduler(paper_lr_schedule)
 
-        train_data_generator = self.iterate_minibatches_infty(inputs=train, targets=train_targets,
-                            batch_size=batch_size,# shuffle=False,
+        train_data_generator = self.iterate_minibatches_endless(inputs=train, targets=train_targets,
+                            batch_size=batch_size, shuffle=True,
                             random_flip=True, random_crop=True)
-        valid_data_generator = self.iterate_minibatches_infty(inputs=valid, targets=valid_targets,
-                            batch_size=batch_size)#, shuffle=False)
+        valid_data_generator = self.iterate_minibatches_endless(inputs=valid, targets=valid_targets,
+                            batch_size=batch_size, shuffle=False)
 
         hist = model.fit_generator(generator=train_data_generator,
                             steps_per_epoch=int(len(train)/batch_size),
@@ -392,7 +386,7 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
         print('x_test', x_test.shape)
 
         x_train = self.pad_images(x_train, padding=(4,4))
-        
+
         n = 1000
         x_train = x_train[:n]
         x_val = x_val[:n]
