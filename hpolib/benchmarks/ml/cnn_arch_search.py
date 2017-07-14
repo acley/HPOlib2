@@ -169,8 +169,8 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             ilayer = keras.layers.Conv2D(filters=N,
                                          kernel_size=(W,H),
                                         #  activation='relu',
-                                        #  W_regularizer=l2(0.0001),
-                                        #  b_regularizer=l2(0.0001),
+                                        kernel_regularizer=l2(0.0001),
+                                        bias_regularizer=l2(0.0001),
                                          name=layer_name)(concatenated_input)
             ilayer = keras.layers.BatchNormalization(axis=-1)(ilayer)
             ilayer = keras.layers.Activation('relu')(ilayer)
@@ -307,7 +307,6 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                 return init_lr/10.
             if epoch >= int(0.75*max_epochs):
                 return init_lr/100.
-            else:
         lr_callback = keras.callbacks.LearningRateScheduler(paper_lr_schedule)
 
         train_data_generator = self.iterate_minibatches_endless(inputs=train, targets=train_targets,
