@@ -52,7 +52,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 
         params = config.get_dictionary()
         #lc_curve, cost_curve, train_loss, valid_loss = self.train_net(train, train_targets,
-        hist = self.train_net_no_gen(train, train_targets, self.valid,
+        hist = self.train_net_logged(train, train_targets, self.valid,
                 self.valid_targets, batch_size=self.batch_size,
                 params=params, num_epochs=num_epochs)
                                                                       #self.valid, self.valid_targets,
@@ -295,7 +295,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 
         # called in every epoch, necessary to use tensorboard
         tb_callback = keras.callbacks.TensorBoard(log_dir='./logs',
-                        histogram_freq=1, batch_size=32,
+                        histogram_freq=5, batch_size=32,
                         write_graph=True, write_grads=True,
                         write_images=True)
 
@@ -307,19 +307,21 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                 return init_lr/10.
             if epoch >= int(0.75*max_epochs):
                 return init_lr/100.
+            else:
         lr_callback = keras.callbacks.LearningRateScheduler(paper_lr_schedule)
 
         train_data_generator = self.iterate_minibatches_endless(inputs=train, targets=train_targets,
                             batch_size=batch_size, shuffle=True,
                             random_flip=True, random_crop=True)
-        valid_data_generator = self.iterate_minibatches_endless(inputs=valid, targets=valid_targets,
-                            batch_size=batch_size, shuffle=False)
+        # valid_data_generator = self.iterate_minibatches_endless(inputs=valid, targets=valid_targets,
+        #                     batch_size=batch_size, shuffle=False)
 
         hist = model.fit_generator(generator=train_data_generator,
                             steps_per_epoch=int(len(train)/batch_size),
                             epochs=num_epochs,
-                            validation_data=valid_data_generator,
-                            validation_steps=int(len(valid)/batch_size),
+                            # validation_data=valid_data_generator,
+                            # validation_steps=int(len(valid)/batch_size),
+                            validation_data=(valid, valid_targets),
                             callbacks=[tb_callback,lr_callback])
         return hist
 
@@ -355,7 +357,6 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 
 
             if (e == int(0.5 * num_epochs)) or (e == int(0.75 * num_epochs)):
-            #if True:
                 old_lr = keras.backend.get_value(model.optimizer.lr)
                 new_lr = 0.1*old_lr
                 print('Changing learning rate from {} to {}'.format(
@@ -414,12 +415,12 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
 
         x_train = self.pad_images(x_train, padding=(4,4))
 
-        nt = 33
-        nv = 17
-        x_train = x_train[:nt]
-        x_val = x_val[nt:nt+nv]
-        y_train = y_train[:nt]
-        y_val = y_val[nt:nt+nv]
+        # nt = 33
+        # nv = 17
+        # x_train = x_train[:nt]
+        # x_val = x_val[nt:nt+nv]
+        # y_train = y_train[:nt]
+        # y_val = y_val[nt:nt+nv]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
 
