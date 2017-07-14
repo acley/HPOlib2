@@ -274,7 +274,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                         write_images=True)
 
         hist = model.fit(x=train, y=train_targets, batch_size=batch_size, epochs=num_epochs,
-            verbose=2, validation_data=(valid, valid_targets),
+            verbose=1, validation_data=(valid, valid_targets),
             callbacks=[tb_callback])
 
         return hist
@@ -415,12 +415,12 @@ class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkAr
 
         x_train = self.pad_images(x_train, padding=(4,4))
 
-        # nt = 33
-        # nv = 17
-        # x_train = x_train[:nt]
-        # x_val = x_val[nt:nt+nv]
-        # y_train = y_train[:nt]
-        # y_val = y_val[nt:nt+nv]
+        #nt = 200
+        #nv = 24
+        #x_train = x_train[:nt]
+        #x_val = x_val[nt:nt+nv]
+        #y_train = y_train[:nt]
+        #y_val = y_val[nt:nt+nv]
 
         return  x_train, y_train, x_val, y_val, x_test, y_test
 
