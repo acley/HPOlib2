@@ -153,25 +153,30 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                 if is_input == 1:
                     ilayer_input_idcs.append(jlayer_idx+1)
                     dead_end_layers[jlayer_idx] = 0
+            # if a current layer doesn't have an input, use the image
+            # as input
+            if len(ilayer_input_idcs) == 0:
+                ilayer_input_idcs.append(0)
             # add all dead-end layers to the input
             # of the last layer
             if ilayer_idx == (n_layers-1):
                 dead_end_layers = np.nonzero(dead_end_layers)[0] + 1
                 ilayer_input_idcs.extend(dead_end_layers)
-            # if a current layer doesn't have an input, use the image
-            # as input
-            elif len(ilayer_input_idcs) == 0:
-                ilayer_input_idcs.append(0)
 
             ilayer_inputs = [net_layers[idx] for idx in ilayer_input_idcs]
-            concatenated_input = self.concat_conv_tensors(ilayer_inputs)
+            if len(ilayer_inputs) > 1:
+                concatenated_input = keras.layers.concatenate(ilayer_inputs, axis=-1)
+            else:
+                concatenated_input = ilayer_inputs[0]
+            # concatenated_input = self.concat_conv_tensors(ilayer_inputs)
             layer_name = 'Layer_' + str(ilayer_idx+1)
             ilayer = keras.layers.Conv2D(filters=N,
-                                         kernel_size=(W,H),
-                                        #  activation='relu',
+                                        kernel_size=(W,H),
+                                        padding='same',
+                                        use_bias=True,
                                         kernel_regularizer=l2(0.0001),
                                         bias_regularizer=l2(0.0001),
-                                         name=layer_name)(concatenated_input)
+                                        name=layer_name)(concatenated_input)
             ilayer = keras.layers.BatchNormalization(axis=-1)(ilayer)
             ilayer = keras.layers.Activation('relu')(ilayer)
             net_layers.append(ilayer)
