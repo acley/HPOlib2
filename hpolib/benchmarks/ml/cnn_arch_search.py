@@ -290,13 +290,14 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
         model = keras.models.Model(inputs=layers[0], outputs=layers[-1])
         lr = 0.1
         model.compile(loss=keras.losses.categorical_crossentropy,
-            optimizer=keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
+            #optimizer=keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
+            optimizer=keras.optimizers.Adadelta(),
             metrics=['accuracy'])
 
         # called in every epoch, necessary to use tensorboard
         tb_callback = keras.callbacks.TensorBoard(log_dir='./logs',
                         histogram_freq=5, batch_size=32,
-                        write_graph=True, write_grads=True,
+                        write_graph=True, write_grads=False,
                         write_images=True)
 
         # called in every epoch, used to update lr
@@ -321,7 +322,7 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                             # validation_data=valid_data_generator,
                             # validation_steps=int(len(valid)/batch_size),
                             validation_data=(valid, valid_targets),
-                            callbacks=[tb_callback,lr_callback])
+                            callbacks=[tb_callback])#,lr_callback])
         return hist
 
 
