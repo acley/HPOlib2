@@ -301,9 +301,9 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 
         # called in every epoch, necessary to use tensorboard
         tb_callback = keras.callbacks.TensorBoard(log_dir='./logs',
-                        histogram_freq=5, batch_size=32,
+                        histogram_freq=5, batch_size=16,
                         write_graph=True, write_grads=False,
-                        write_images=True)
+                        write_images=False)
 
         # called in every epoch, used to update lr
         def paper_lr_schedule(epoch, max_epochs=num_epochs, init_lr=lr):
