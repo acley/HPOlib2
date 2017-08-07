@@ -259,31 +259,6 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
                     batch_inputs = self.random_flip(batch_inputs.copy())
                 yield batch_inputs, batch_targets
 
-    def train_net_no_gen(self, train, train_targets,
-                        valid, valid_targets, params,
-                        num_epochs=100, batch_size=64):
-
-        layers = self.build_network(params)
-
-        model = keras.models.Model(inputs=layers[0], outputs=layers[-1])
-        lr = 0.1
-        model.compile(loss=keras.losses.categorical_crossentropy,
-            optimizer=keras.optimizers.SGD(lr=lr, momentum=0.9, nesterov=True),
-            metrics=['accuracy'])
-
-
-        # called in every epoch, necessary to use tensorboard
-        tb_callback = keras.callbacks.TensorBoard(log_dir='./logs',
-                        histogram_freq=1, batch_size=32,
-                        write_graph=True, write_grads=True,
-                        write_images=True)
-
-        hist = model.fit(x=train, y=train_targets, batch_size=batch_size, epochs=num_epochs,
-            verbose=1, validation_data=(valid, valid_targets),
-            callbacks=[tb_callback])
-
-        return hist
-
 
 
     def train_net_logged(self, train, train_targets,
@@ -300,7 +275,8 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
             metrics=['accuracy'])
 
         # called in every epoch, necessary to use tensorboard
-        tb_callback = keras.callbacks.TensorBoard(log_dir='./logs',
+        # tb_callback = keras.callbacks.TensorBoard(log_dir='./logs',
+        tb_callback = keras.callbacks.TensorBoard(log_dir='./logs/' + self.tboard_logname,
                         histogram_freq=5, batch_size=16,
                         write_graph=True, write_grads=False,
                         write_images=False)
@@ -402,6 +378,21 @@ class ConvolutionalNeuralNetworkArchSearch(AbstractBenchmark):
 
 
 class ConvolutionalNeuralNetworkArchSearchOnCIFAR10(ConvolutionalNeuralNetworkArchSearch):
+
+    def __init__(self, path=None, max_num_epochs=40, batch_size=128, rng=None,
+                tboard_logname=''):
+
+        self.tboard_logname = tboard_logname
+
+        # self.train, self.train_targets, self.valid, self.valid_targets, self.test, self.test_targets = self.get_data()
+        # self.max_num_epochs = max_num_epochs
+        # self.num_classes = len(np.unique(self.train_targets))
+        # self.batch_size = batch_size
+        #
+        # self.rng = rng
+
+        super(ConvolutionalNeuralNetworkArchSearchOnCIFAR10, self).__init__(path,
+            max_num_epochs, batch_size, rng)
 
     def get_data(self):
         dm = CIFAR10DataZCAWhitened()
